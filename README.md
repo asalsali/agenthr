@@ -1,10 +1,22 @@
 # AgentHR
 
-**Workforce management for AI agent fleets.**
+**Workforce management for AI agent swarms.**
 
-AgentHR is the HR system your agents never had. It manages the full agent lifecycle — hiring, onboarding, performance evaluation, trust progression, and termination — the same way Workday manages human employees, but for AI agents.
+When you're running 5 agents, you can manage them by hand. When you're running 50 — spawning children, forming teams, consuming tokens across parallel workstreams — you can't. AgentHR is the control plane for agent swarms: it governs who gets spawned, prevents duplicate work, detects runaway agents, tracks what every agent learned, and ensures the swarm's institutional memory compounds instead of evaporating.
 
-Not another observability tool. LangSmith tells you what an agent *did*. Braintrust tells you if the output was *good*. AgentHR tells you whether you should **keep employing this agent type**, whether it needs retraining, whether it should be promoted to handle harder tasks, and whether its output was ever actually used.
+Not another observability tool. LangSmith tells you what an agent *did*. Braintrust tells you if the output was *good*. AgentHR tells you whether **the swarm is healthy** — whether agents are accumulating faster than they're completing, whether the system is producing output nobody reads, whether an agent type has degraded, and whether the next spawn should happen at all.
+
+## The Problem
+
+Agent swarms fail in ways that individual agents don't:
+
+- **Zombie accumulation** — agents fail silently and keep consuming tokens. At scale, this bleeds budgets.
+- **Duplicate work** — two agents in different teams research the same thing without knowing the other exists.
+- **Institutional amnesia** — Agent #47 rediscovers what Agent #12 learned three hours ago because nobody transferred the knowledge.
+- **Runaway spawning** — a parent agent keeps spawning children until the system is saturated, with no backpressure signal.
+- **Invisible waste** — agents complete mandates, produce output, and that output is never read by anyone. The swarm is busy but not productive.
+
+AgentHR solves these structurally, not reactively.
 
 ## Quick Start
 
@@ -16,85 +28,103 @@ agenthr serve     # start the API server on :8420
 
 API docs at [http://localhost:8420/docs](http://localhost:8420/docs).
 
-## Core Concepts
+## How It Works
 
-### Agent Lifecycle
+### Spawn Gates — Swarm Growth Control
 
-Every agent moves through a governed lifecycle:
+Every agent registration passes through four gates before the swarm grows by one:
 
-```
-Hire → Onboard → Active → Shutdown → Archived
-       (Genesis)  (Heartbeats, Evaluation)  (Exit Report)
-```
+1. **Overlap detection** — scans the active roster for agents with similar mandates. Cross-team overlap blocks the spawn; same-team overlap warns. Prevents duplicate work across the swarm.
+2. **Resource pressure** — a continuous 0.0-1.0 score computed from agent density, token burn rate, turnover ratio, and handoff utilization. At green (< 0.4), spawns proceed freely. At yellow, they're logged with justification. At orange, they require explicit justification. At red (> 0.9), spawning halts and consolidation triggers. This is backpressure for agent swarms.
+3. **Memory retrieval** — searches the swarm's accumulated exit reports for relevant prior learnings. If Agent #12 already researched this topic, Agent #47 gets those findings at spawn time. No agent starts from scratch.
+4. **Integrity check** — verifies the agent type definition hasn't been tampered with.
 
-**Hiring** runs spawn gates before any agent is registered — overlap detection, resource pressure checks, and memory retrieval from predecessors. No agent starts from scratch if the system has relevant prior learnings.
+### Semantic Heartbeats — Swarm Liveness
 
-**Onboarding** (the Genesis Phase) delivers context: the mandate, team memory, predecessor exit reports, and compliance rules. The agent forms a world model before taking action.
+Every active agent emits heartbeats — not just "I'm alive" pings, but structured progress reports: what action was taken, what phase the agent is in, whether the work is converging or diverging, and which tools are being used.
 
-**Active** agents emit semantic heartbeats — proof of progress, not just proof of existence. Five anomaly detectors run on every heartbeat, catching territory drift, token hemorrhage, stuck loops, role drift, and output contradictions.
-
-**Shutdown** produces a structured exit report: what worked, what failed, gaps, decisions, dissent. This becomes institutional memory for the next generation.
-
-### Trust Progression
-
-Trust is earned, not declared. Agent types progress through four levels based on demonstrated reliability:
-
-| Level | Name | Criteria | Unlocks |
-|---|---|---|---|
-| 0 | **Untested** | New agent type | Low token budget |
-| 1 | **Proven** | 3+ completed mandates, 0 violations | Medium budget |
-| 2 | **Trusted** | 10+ mandates, efficiency within 20% of baseline | High budget, cross-team mandates |
-| 3 | **Veteran** | 25+ mandates, explicit endorsement | No token cap, domain elder status |
-
-Demotion is graduated: first violation is noted, second freezes promotion, third drops one level. Agents that honestly self-report failures (non-empty `what_failed`, `gaps`, `dissent` in exit reports) get a 20% reduction in promotion thresholds.
-
-### Spawn Gates
-
-Every `POST /agents` passes through four gates:
-
-1. **Overlap detection** — finds active agents with similar mandates via keyword intersection. Cross-team overlap blocks; same-team overlap warns.
-2. **Resource pressure** — a continuous 0.0-1.0 score from agent density, token consumption, turnover ratio, and handoff utilization. Green/yellow/orange/red graduated response.
-3. **Memory retrieval** — searches predecessor exit reports for relevant learnings. No mandate starts from scratch.
-4. **Integrity check** — verifies agent type definition hash.
-
-### Innate Detection
-
-Five anomaly patterns run on every heartbeat:
+Five anomaly detectors run on every heartbeat across the entire swarm:
 
 | Pattern | What it catches |
 |---|---|
-| Territory drift | Agent writing outside its domain |
-| Token hemorrhage | Consumption at 3x expected rate |
-| Stuck loops | 3 identical actions in sequence |
-| Role drift | Tool usage diverges >40% from type baseline |
-| Output contradiction | Agent overwriting its own recent output |
+| **Territory drift** | Agent operating outside its assigned domain |
+| **Token hemorrhage** | Agent burning tokens at 3x the expected rate |
+| **Stuck loops** | Agent repeating the same action 3 times in sequence |
+| **Role drift** | Analyst doing writer work, writer doing research — tool profile diverges >40% from type baseline |
+| **Output contradiction** | Agent overwriting its own recent output (fighting itself) |
 
-Two distinct signals on the same agent within 5 heartbeats triggers automatic escalation.
+Two distinct anomaly signals on the same agent within 5 heartbeats triggers automatic escalation. At swarm scale, this is the difference between catching a runaway agent in 30 seconds vs. discovering it burned $50 of tokens after the fact.
 
-### Vital Signs
+Agents that stop emitting heartbeats are flagged as stale. This is the **default-dead** primitive: existence requires continuous proof of progress. No heartbeat, no agent. Zombie processes are impossible by construction.
 
-System-level health metrics computed from agent telemetry:
+### Trust Progression — Swarm Capability Governance
 
-| Vital Sign | Healthy Range | Unhealthy Signal |
+Agent types earn operational latitude through track record, not declaration:
+
+| Level | Name | Earned by | Unlocks |
+|---|---|---|---|
+| 0 | **Untested** | First spawn | Low token budget only |
+| 1 | **Proven** | 3+ completed mandates, 0 violations | Medium budget |
+| 2 | **Trusted** | 10+ mandates, token efficiency within 20% of baseline, >85% completion rate | High budget, cross-team mandates |
+| 3 | **Veteran** | 25+ mandates, explicit endorsement | No cap, domain elder status, auto-approved same-team spawns |
+
+Demotion is graduated: first violation is noted (no impact), second freezes promotion, third drops one level. This means a single bad run doesn't destroy a track record — but a pattern of failure does.
+
+**Candor bonus:** agent types whose exit reports consistently include honest `what_failed`, `gaps`, and `dissent` fields earn a 20% reduction in promotion thresholds. The swarm rewards honesty over self-preservation.
+
+### Exit Reports — Swarm Memory
+
+When an agent shuts down, it writes a structured exit report:
+
+```json
+{
+  "mandate_completed": true,
+  "key_findings": ["ECE enrollment up 12% YoY"],
+  "what_worked": "Direct SQL queries against Quest extract",
+  "what_failed": "PowerBI API too slow for ad-hoc queries",
+  "recommendations": "Build a cached view for enrollment metrics",
+  "gaps": [{"domain": "retention", "description": "No data linked"}],
+  "decisions": [{"id": "d-001", "summary": "Used SQL over API"}],
+  "dissent": [{"position": "Use GraphQL", "outcome": "rejected"}],
+  "contrarian": "Enrollment growth may plateau as housing crisis worsens",
+  "tokens_consumed": 2400
+}
+```
+
+Exit reports are searchable and feed into spawn gates (memory retrieval), baselines (performance tracking), and trust evaluation. Every agent that shuts down makes the swarm smarter. Every agent that shuts down without a report is institutional memory lost.
+
+### Vital Signs — Swarm Health at a Glance
+
+Five system-level health metrics tell you whether the swarm is healthy:
+
+| Vital Sign | Healthy | Unhealthy Signal |
 |---|---|---|
-| Agent turnover ratio | 0.6 - 1.0 | Below 0.6: agents accumulating |
-| Token efficiency trend | Within 30% of baseline | Deviation: regression drift |
-| Handoff utilization | Above 50% | Below 50%: institutional memory ignored |
-| Team memory freshness | Under 7 days | Beyond 7 days: knowledge decaying |
-| Output consumption | Above 30% | Below 30%: system producing waste |
+| **Turnover ratio** (archived / spawned, 24h) | 0.6 - 1.0 | Below 0.6: swarm is growing faster than it's completing work |
+| **Token efficiency** (avg tokens per mandate) | Within 30% of baseline | Deviation: something changed, investigate |
+| **Handoff utilization** (exit reports read / total) | Above 50% | Below 50%: agents are ignoring their predecessors |
+| **Team memory freshness** | Under 7 days | Beyond 7 days: domain knowledge is decaying |
+| **Output consumption** (outputs that were read / total) | Above 30% | Below 30%: the swarm is producing waste |
+
+A swarm with low handoff utilization and high agent accumulation is sick in a way that no individual agent metric captures. Vital signs surface swarm-level pathology.
+
+### Futility Detection
+
+The hardest failure to catch: an agent completes its mandate correctly, produces correct output, and nobody ever uses it. No error. No crash. Just waste.
+
+AgentHR tracks which exit reports are referenced by subsequent agents and which outputs are consumed. Exit reports that sit untouched for 24+ hours are flagged as futility candidates. The swarm learns what kinds of work produce value and what kinds produce noise.
 
 ## API Reference
 
-### Registry
+### Swarm Registry
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/agents` | Hire a new agent (runs spawn gates) |
-| `GET` | `/agents` | List roster (filter by status, team, type, trust) |
-| `GET` | `/agents/:id` | Get agent profile |
-| `PATCH` | `/agents/:id` | Update agent (status, phase, team, tokens) |
-| `DELETE` | `/agents/:id` | Terminate (archive) agent |
-| `GET` | `/agents/roster/stats` | Roster summary |
+| `POST` | `/agents` | Spawn an agent (runs all 4 gates) |
+| `GET` | `/agents` | List swarm roster (filter by status, team, type, trust) |
+| `GET` | `/agents/:id` | Agent profile |
+| `PATCH` | `/agents/:id` | Update agent |
+| `DELETE` | `/agents/:id` | Terminate agent |
+| `GET` | `/agents/roster/stats` | Swarm summary (counts by status, type, team, trust) |
 | `GET` | `/agents/pressure` | Current resource pressure |
 
 ### Heartbeat
@@ -104,39 +134,39 @@ System-level health metrics computed from agent telemetry:
 | `POST` | `/agents/:id/heartbeat` | Record heartbeat (runs anomaly detection) |
 | `GET` | `/agents/:id/heartbeat` | Latest heartbeat |
 | `GET` | `/agents/:id/heartbeats` | Heartbeat history |
-| `GET` | `/heartbeats/stale` | Find agents with stale heartbeats |
+| `GET` | `/heartbeats/stale` | Find zombie agents |
 
 ### Evaluation
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/agents/:id/exit-report` | Submit exit report |
+| `POST` | `/agents/:id/exit-report` | Submit exit report (updates baselines + trust) |
 | `GET` | `/agents/:id/exit-report` | Get exit report |
-| `GET` | `/exit-reports/search?q=` | Search exit reports by keyword |
+| `GET` | `/exit-reports/search?q=` | Search swarm knowledge base |
 | `GET` | `/baselines/:type` | Performance baseline for agent type |
-| `GET` | `/baselines/:type/degradation` | Check for regression drift |
+| `GET` | `/baselines/:type/degradation` | Regression drift check |
 | `GET` | `/trust/:type` | Trust evaluation with promotion criteria |
-| `POST` | `/trust/:type/promote` | Promote agent type trust level |
+| `POST` | `/trust/:type/promote` | Promote agent type |
 
 ### Analytics
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/analytics/vital-signs` | System health dashboard |
-| `GET` | `/analytics/hotspots` | High-connectivity agent types |
-| `GET` | `/analytics/futility` | Agents whose output was never consumed |
-| `GET` | `/analytics/teams/:id` | Per-team health |
+| `GET` | `/analytics/vital-signs` | Swarm health dashboard |
+| `GET` | `/analytics/hotspots` | Overloaded agent types (high fan-out/fan-in) |
+| `GET` | `/analytics/futility` | Wasted work detection |
+| `GET` | `/analytics/teams/:id` | Team-level health |
 | `GET` | `/analytics/types/:type` | Full agent type report |
 
 ### Onboarding
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/agents/:id/onboard` | Run Genesis Phase, deliver context |
+| `POST` | `/agents/:id/onboard` | Run Genesis Phase, deliver swarm context |
 
-## Usage Examples
+## Usage
 
-### Hire an agent
+### Spawn an agent into the swarm
 
 ```bash
 curl -X POST http://localhost:8420/agents \
@@ -144,77 +174,70 @@ curl -X POST http://localhost:8420/agents \
   -d '{
     "type": "analyst",
     "name": "enrollment-scout",
-    "framework": "claude-code",
+    "framework": "langgraph",
     "mandate": "Analyze enrollment trends in ECE program",
-    "mandate_type": "research"
+    "mandate_type": "research",
+    "team_id": "engineering-data"
   }'
 ```
 
-### Send a heartbeat
+The response includes the spawn gate results — whether overlaps were found, what the swarm pressure is, and what prior agents learned about similar mandates.
+
+### Monitor the swarm
 
 ```bash
-curl -X POST http://localhost:8420/agents/{id}/heartbeat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "last_action": "Querying enrollment database",
-    "phase": "execution",
-    "action_count": 5,
-    "momentum": "converging",
-    "tool_breakdown": {"Read": 3, "Bash": 2}
-  }'
-```
+# Are any agents stale?
+curl http://localhost:8420/heartbeats/stale
 
-### Submit an exit report
-
-```bash
-curl -X POST http://localhost:8420/agents/{id}/exit-report \
-  -H "Content-Type: application/json" \
-  -d '{
-    "mandate_completed": true,
-    "key_findings": ["ECE enrollment up 12% YoY"],
-    "what_worked": "Direct SQL queries",
-    "what_failed": "PowerBI API too slow",
-    "recommendations": "Build a cached view",
-    "gaps": [],
-    "decisions": [],
-    "dissent": [],
-    "tokens_consumed": 2400
-  }'
-```
-
-### Check system health
-
-```bash
+# Is the swarm healthy?
 curl http://localhost:8420/analytics/vital-signs
+
+# Are we producing waste?
+curl http://localhost:8420/analytics/futility
+
+# Which agent types are overloaded?
+curl http://localhost:8420/analytics/hotspots
+```
+
+### Search swarm knowledge
+
+```bash
+# What has the swarm learned about enrollment?
+curl "http://localhost:8420/exit-reports/search?q=enrollment"
+
+# Is the analyst type degrading?
+curl http://localhost:8420/baselines/analyst/degradation
+
+# Should we promote the analyst type?
+curl http://localhost:8420/trust/analyst
 ```
 
 ## Architecture
 
 ```
 agenthr/
-  __init__.py          # Package exports
-  api.py               # FastAPI application (18 endpoints)
+  api.py               # FastAPI (18 endpoints)
   cli.py               # CLI (serve, init)
   database.py          # SQLAlchemy 2.0 async ORM (7 tables)
-  models.py            # Pydantic v2 data models (19 models)
+  models.py            # Pydantic v2 models (19 models)
   services/
-    registry.py        # Hire, terminate, spawn gates, pressure
-    heartbeat.py       # Heartbeats, staleness, anomaly detection
+    registry.py        # Spawn gates, roster, pressure
+    heartbeat.py       # Liveness, staleness, anomaly detection
     evaluate.py        # Exit reports, baselines, trust, violations
-    analytics.py       # Vital signs, hotspots, futility, team health
+    analytics.py       # Vital signs, hotspots, futility
 ```
 
-**Database:** SQLite for development, Postgres for production (set `DATABASE_URL` env var).
+**Database:** SQLite for dev, Postgres for production (`DATABASE_URL` env var).
 
-**Framework-agnostic:** AgentHR manages agents from any framework. Adapters for LangGraph, CrewAI, and Claude Code are planned.
+**Framework-agnostic:** AgentHR doesn't run agents — it governs them. Works with any swarm framework. Adapters for LangGraph, CrewAI, and Claude Code are planned.
 
 ## Theoretical Foundation
 
-AgentHR's design is grounded in two formal results:
+AgentHR implements two formally proven design axioms:
 
-- **Default-dead agent semantics** — agents must continuously produce verifiable proof of progress or be terminated. Eliminates zombie agents by construction. Based on the Alpern-Schneider safety/liveness decomposition.
+**Default-dead semantics.** Agents must continuously produce verifiable proof of progress or be terminated. This eliminates zombie agents by construction — no external monitor required. At swarm scale, this is the difference between bounded waste and unbounded token burn. Formally: default-dead systems satisfy a bounded-waste safety property as a structural invariant that default-alive systems can only achieve through external monitoring at cost Omega(n/delta).
 
-- **Irrevocable delegation** — flag-based irrevocability (declaring delegation irrevocable without enforcement) is strictly dominated by either pure revocable or pure irrevocable delegation. The trust progression system implements graduated, earned irrevocability.
+**Earned irrevocability.** Trust is graduated, not binary. The trust progression system implements irrevocable delegation that is earned through demonstrated reliability, avoiding the "flag-based irrevocability" trap where declared-but-unenforced delegation is provably dominated by either pure strategy.
 
 See: *Two Design Axioms for Multi-Agent AI Systems* (Salsali, 2026).
 
