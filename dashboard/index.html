@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentHR</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --border: #1a1a1a;
+  --text-primary: #ededed;
+  --text-secondary: #888888;
+  --text-tertiary: #555555;
+  --accent: #0070f3;
+  --success: #50e3c2;
+  --warning: #f5a623;
+  --danger: #ee0000;
+  --mono: 'Geist Mono', 'SF Mono', 'Menlo', 'Consolas', monospace;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  user-select: none;
+}
+.sidebar.collapsed { width: 0; min-width: 0; overflow: hidden; border: none; }
+.sidebar-logo {
+  padding: 20px 16px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-logo span { font-family: var(--mono); font-size: 10px; color: var(--text-tertiary); font-weight: 400; }
+.sidebar-nav { flex: 1; padding: 0 8px; }
+.nav-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+.nav-item:hover { color: var(--text-primary); }
+.nav-item.active {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.03);
+  border-left-color: var(--accent);
+}
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--success);
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Main */
+.main { flex: 1; overflow-y: auto; height: 100vh; }
+.view { display: none; padding: 24px; }
+.view.active { display: block; }
+.view-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 20px;
+}
+
+/* KPI Strip */
+.kpi-strip {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.kpi {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.kpi-label { color: var(--text-tertiary); font-family: var(--sans); }
+.kpi-value { color: var(--text-primary); font-weight: 600; font-size: 14px; }
+.kpi-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.trust-minibar {
+  display: inline-flex;
+  gap: 1px;
+  height: 10px;
+  align-items: flex-end;
+}
+.trust-minibar-seg {
+  width: 16px;
+  border-radius: 1px;
+  min-height: 2px;
+}
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.data-table th:hover { color: var(--text-secondary); }
+.sort-arrow { font-size: 10px; margin-left: 4px; }
+.data-table td {
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table tr:hover td { background: #161616; }
+.data-table .col-name { color: var(--text-primary); font-family: var(--sans); font-weight: 500; }
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-active { background: var(--success); }
+.status-onboarding { background: var(--warning); }
+.status-archived { background: var(--text-tertiary); }
+.status-blocked { background: var(--danger); }
+
+.trust-dots { display: inline-flex; gap: 3px; }
+.trust-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--text-tertiary);
+}
+.trust-dot.filled { background: var(--text-primary); border-color: var(--text-primary); }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+/* Vital Signs */
+.vital-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.vital-label { width: 200px; color: var(--text-secondary); font-size: 13px; flex-shrink: 0; }
+.vital-value { width: 80px; font-family: var(--mono); font-size: 14px; font-weight: 600; text-align: right; flex-shrink: 0; }
+.vital-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; }
+.vital-bar { height: 100%; border-radius: 2px; min-width: 1px; }
+.vital-health {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pressure-gauge {
+  margin-top: 32px;
+  margin-bottom: 32px;
+}
+.pressure-number {
+  font-family: var(--mono);
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.pressure-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  margin-top: 24px;
+}
+
+/* Trust View */
+.trust-layout { display: flex; gap: 24px; }
+.trust-list { width: 280px; flex-shrink: 0; }
+.trust-detail { flex: 1; min-width: 0; }
+.trust-type-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.trust-type-item:hover { background: #161616; }
+.trust-type-item.selected { background: #161616; border-left: 2px solid var(--accent); }
+.trust-type-name { font-size: 13px; font-weight: 500; }
+.trust-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--text-secondary);
+}
+.trust-badge.level-0 { color: var(--text-tertiary); }
+.trust-badge.level-1 { color: var(--text-secondary); }
+.trust-badge.level-2 { color: var(--success); background: rgba(80,227,194,0.1); }
+.trust-badge.level-3 { color: var(--accent); background: rgba(0,112,243,0.1); }
+
+.criteria-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  gap: 12px;
+}
+.criteria-icon { width: 20px; text-align: center; font-family: var(--mono); }
+.criteria-icon.pass { color: var(--success); }
+.criteria-icon.fail { color: var(--danger); }
+.criteria-name { flex: 1; color: var(--text-secondary); }
+.criteria-values { font-family: var(--mono); color: var(--text-tertiary); font-size: 11px; }
+
+.violation-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.violation-date { font-family: var(--mono); color: var(--text-tertiary); font-size: 11px; margin-bottom: 2px; }
+.violation-desc { color: var(--text-secondary); }
+
+/* Knowledge */
+.search-bar {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 20px;
+}
+.search-bar:focus { border-color: var(--text-tertiary); }
+.search-bar::placeholder { color: var(--text-tertiary); }
+
+.report-card {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.report-card:hover { background: #161616; }
+.report-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.report-agent { font-weight: 500; font-size: 13px; }
+.report-mandate { color: var(--text-tertiary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; }
+.report-freshness { font-family: var(--mono); font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.report-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.report-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--border);
+  border-radius: 2px;
+  color: var(--text-secondary);
+}
+.report-columns { display: flex; gap: 24px; }
+.report-col { flex: 1; }
+.report-col-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); margin-bottom: 4px; }
+.report-col-body { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">AgentHR <span>v1</span></div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-view="roster">Roster</button>
+    <button class="nav-item" data-view="vitals">Vital Signs</button>
+    <button class="nav-item" data-view="trust">Trust</button>
+    <button class="nav-item" data-view="knowledge">Knowledge</button>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="liveLabel">Live</span>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- Roster -->
+  <div class="view active" id="view-roster">
+    <div class="view-title">Roster</div>
+    <div class="kpi-strip" id="rosterKpis"></div>
+    <table class="data-table" id="rosterTable">
+      <thead>
+        <tr>
+          <th data-col="status" data-type="string">Status</th>
+          <th data-col="name" data-type="string">Name</th>
+          <th data-col="agentType" data-type="string">Type</th>
+          <th data-col="tribeId" data-type="string">Team</th>
+          <th data-col="phase" data-type="string">Phase</th>
+          <th data-col="trustLevel" data-type="number">Trust</th>
+          <th data-col="tokens" data-type="number">Tokens</th>
+          <th data-col="bornAt" data-type="string">Born</th>
+        </tr>
+      </thead>
+      <tbody id="rosterBody"></tbody>
+    </table>
+    <div class="empty-state" id="rosterEmpty" style="display:none">No agents in the swarm.</div>
+  </div>
+
+  <!-- Vital Signs -->
+  <div class="view" id="view-vitals">
+    <div class="view-title">Vital Signs</div>
+    <div id="vitalsRows"></div>
+    <div class="pressure-gauge" id="pressureGauge"></div>
+    <div id="hotspotsSection"></div>
+  </div>
+
+  <!-- Trust -->
+  <div class="view" id="view-trust">
+    <div class="view-title">Trust</div>
+    <div class="trust-layout">
+      <div class="trust-list" id="trustList"></div>
+      <div class="trust-detail" id="trustDetail">
+        <div class="empty-state">Select an agent type to view trust details.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Knowledge -->
+  <div class="view" id="view-knowledge">
+    <div class="view-title">Knowledge</div>
+    <input class="search-bar" id="knowledgeSearch" type="text" placeholder="Search swarm knowledge...">
+    <div id="knowledgeResults">
+      <div class="empty-state">Search exit reports, findings, and swarm learnings.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API_URL = 'http://localhost:8420';
+
+// State
+let currentView = 'roster';
+let rosterData = [];
+let rosterSort = { col: 'bornAt', asc: false };
+let refreshInterval = null;
+let trustTypes = [];
+
+// --- Navigation ---
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const view = btn.dataset.view;
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    currentView = view;
+    stopRefresh();
+    if (view === 'roster') { loadRoster(); startRefresh(); }
+    else if (view === 'vitals') { loadVitals(); startRefresh(); }
+    else if (view === 'trust') { loadTrust(); }
+    else if (view === 'knowledge') { document.getElementById('knowledgeSearch').focus(); }
+  });
+});
+
+// --- Data Fetching ---
+async function api(path) {
+  try {
+    const r = await fetch(API_URL + path);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+// --- Roster ---
+async function loadRoster() {
+  const [agents, stats, pressure] = await Promise.all([
+    api('/agents'),
+    api('/agents/roster/stats'),
+    api('/agents/pressure')
+  ]);
+  renderRosterKpis(agents, stats, pressure);
+  rosterData = Array.isArray(agents) ? agents : (agents?.agents || []);
+  renderRosterTable();
+}
+
+function renderRosterKpis(agents, stats, pressure) {
+  const list = Array.isArray(agents) ? agents : (agents?.agents || []);
+  const total = stats?.total ?? list.length;
+  const active = stats?.active ?? list.filter(a => a.status === 'active').length;
+  const pVal = pressure?.globalPressure ?? pressure?.pressure;
+  const pLevel = pressure?.level ?? 'unknown';
+  const pColor = { green: 'var(--success)', yellow: 'var(--warning)', orange: 'var(--warning)', red: 'var(--danger)' }[pLevel] || 'var(--text-tertiary)';
+
+  // Trust distribution
+  const dist = [0, 0, 0, 0];
+  list.forEach(a => { const t = a.trustLevel ?? 0; if (t >= 0 && t <= 3) dist[t]++; });
+  const maxDist = Math.max(...dist, 1);
+
+  let html = `
+    <div class="kpi"><span class="kpi-label">Total</span><span class="kpi-value">${total}</span></div>
+    <div class="kpi"><span class="kpi-label">Active</span><span class="kpi-value">${active}</span></div>
+    <div class="kpi"><span class="kpi-label">Pressure</span><span class="kpi-dot" style="background:${pColor}"></span><span class="kpi-value">${pVal != null ? pVal.toFixed(2) : '\u2014'}</span></div>
+    <div class="kpi"><span class="kpi-label">Trust</span><div class="trust-minibar">
+      ${dist.map((d, i) => `<div class="trust-minibar-seg" style="height:${Math.max(2, (d / maxDist) * 10)}px;background:${['var(--text-tertiary)','var(--text-secondary)','var(--success)','var(--accent)'][i]}"></div>`).join('')}
+    </div></div>`;
+  document.getElementById('rosterKpis').innerHTML = html;
+}
+
+function renderRosterTable() {
+  const tbody = document.getElementById('rosterBody');
+  const empty = document.getElementById('rosterEmpty');
+  if (!rosterData.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  const sorted = [...rosterData].sort((a, b) => {
+    let va = resolve(a, rosterSort.col);
+    let vb = resolve(b, rosterSort.col);
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return rosterSort.asc ? va - vb : vb - va;
+    return rosterSort.asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+
+  tbody.innerHTML = sorted.map(a => {
+    const status = a.status || 'archived';
+    const statusCls = { active: 'status-active', onboarding: 'status-onboarding', archived: 'status-archived', blocked: 'status-blocked' }[status] || 'status-archived';
+    const trust = a.trustLevel ?? 0;
+    const trustDots = [0,1,2].map(i => `<span class="trust-dot${i < trust ? ' filled' : ''}"></span>`).join('');
+    const born = a.bornAt ? timeAgo(a.bornAt) : '\u2014';
+    const tokens = a.tokensConsumed ?? a.tokens ?? '\u2014';
+    return `<tr>
+      <td><span class="status-dot ${statusCls}"></span></td>
+      <td class="col-name">${esc(a.name || a.agentId || '\u2014')}</td>
+      <td>${esc(a.agentType || '\u2014')}</td>
+      <td>${esc(a.tribeId || '\u2014')}</td>
+      <td>${esc(a.mandateProgress || a.phase || '\u2014')}</td>
+      <td><span class="trust-dots">${trustDots}</span></td>
+      <td>${typeof tokens === 'number' ? tokens.toLocaleString() : tokens}</td>
+      <td>${born}</td>
+    </tr>`;
+  }).join('');
+
+  // Update sort arrows
+  document.querySelectorAll('#rosterTable th').forEach(th => {
+    const existing = th.querySelector('.sort-arrow');
+    if (existing) existing.remove();
+    if (th.dataset.col === rosterSort.col) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = rosterSort.asc ? '\u2191' : '\u2193';
+      th.appendChild(arrow);
+    }
+  });
+}
+
+document.querySelectorAll('#rosterTable th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (rosterSort.col === col) rosterSort.asc = !rosterSort.asc;
+    else { rosterSort.col = col; rosterSort.asc = true; }
+    renderRosterTable();
+  });
+});
+
+function resolve(obj, key) {
+  if (key === 'tokens') return obj.tokensConsumed ?? obj.tokens ?? 0;
+  if (key === 'phase') return obj.mandateProgress || obj.phase || '';
+  if (key === 'name') return obj.name || obj.agentId || '';
+  return obj[key] ?? '';
+}
+
+// --- Vital Signs ---
+const VITAL_DEFS = [
+  { key: 'agentTurnover', label: 'Agent Turnover Ratio', range: [0.6, 1.0], max: 1.5 },
+  { key: 'tokenEfficiency', label: 'Token Efficiency Trend', range: [0.7, 1.3], max: 2.0 },
+  { key: 'handoffUtilization', label: 'Handoff Utilization', range: [0.5, 1.0], max: 1.0 },
+  { key: 'domainMemoryFreshness', label: 'Domain Memory Freshness', range: [0, 7], max: 30, unit: 'd' },
+  { key: 'outputConsumption', label: 'Output Consumption', range: [0.3, 1.0], max: 1.0 }
+];
+
+async function loadVitals() {
+  const [vitals, pressure, hotspots] = await Promise.all([
+    api('/analytics/vital-signs'),
+    api('/agents/pressure'),
+    api('/analytics/hotspots')
+  ]);
+  renderVitals(vitals);
+  renderPressure(pressure);
+  renderHotspots(hotspots);
+}
+
+function renderVitals(data) {
+  const container = document.getElementById('vitalsRows');
+  if (!data) { container.innerHTML = VITAL_DEFS.map(v => vitalRow(v, null)).join(''); return; }
+  container.innerHTML = VITAL_DEFS.map(v => {
+    const val = data[v.key] ?? data.vitals?.[v.key] ?? null;
+    return vitalRow(v, val);
+  }).join('');
+}
+
+function vitalRow(def, val) {
+  const display = val != null ? (def.unit ? val.toFixed(1) + def.unit : val.toFixed(2)) : '\u2014';
+  let healthy = val == null ? null : (val >= def.range[0] && val <= def.range[1]);
+  const color = healthy === null ? 'var(--text-tertiary)' : healthy ? 'var(--success)' : 'var(--warning)';
+  const pct = val != null ? Math.min(100, (val / def.max) * 100) : 0;
+  return `<div class="vital-row">
+    <div class="vital-label">${def.label}</div>
+    <div class="vital-value">${display}</div>
+    <div class="vital-bar-wrap"><div class="vital-bar" style="width:${pct}%;background:${color}40"></div></div>
+    <div class="vital-health" style="background:${color}"></div>
+  </div>`;
+}
+
+function renderPressure(data) {
+  const val = data?.globalPressure ?? data?.pressure;
+  const level = data?.level ?? 'unknown';
+  const color = { green: 'var(--success)', yellow: 'var(--warning)', orange: 'var(--warning)', red: 'var(--danger)' }[level] || 'var(--text-tertiary)';
+  document.getElementById('pressureGauge').innerHTML = `
+    <div class="section-title">System Pressure</div>
+    <div class="pressure-number" style="color:${color}">${val != null ? val.toFixed(2) : '\u2014'}</div>
+    <div class="pressure-label" style="color:${color}">${level.toUpperCase()}</div>`;
+}
+
+function renderHotspots(data) {
+  const list = Array.isArray(data) ? data : (data?.hotspots || []);
+  const section = document.getElementById('hotspotsSection');
+  if (!list.length) { section.innerHTML = ''; return; }
+  section.innerHTML = `<div class="section-title">Hotspots</div>
+    <table class="data-table"><thead><tr>
+      <th>Agent Type</th><th>Fan-out</th><th>Fan-in</th><th>Cross-domain</th><th>Risk</th>
+    </tr></thead><tbody>${list.map(h => `<tr>
+      <td class="col-name">${esc(h.agentType || '\u2014')}</td>
+      <td>${h.fanOut ?? '\u2014'}</td>
+      <td>${h.fanIn ?? '\u2014'}</td>
+      <td>${h.crossDomainTouches ?? '\u2014'}</td>
+      <td style="color:${h.riskLevel === 'high' ? 'var(--danger)' : 'var(--warning)'}">${esc(h.riskLevel || '\u2014')}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// --- Trust ---
+const LEVEL_NAMES = ['Untested', 'Proven', 'Trusted', 'Veteran'];
+
+async function loadTrust() {
+  const agents = await api('/agents');
+  const list = Array.isArray(agents) ? agents : (agents?.agents || []);
+  const types = {};
+  list.forEach(a => {
+    const t = a.agentType || 'unknown';
+    if (!types[t]) types[t] = { type: t, trustLevel: a.trustLevel ?? 0 };
+    types[t].trustLevel = Math.max(types[t].trustLevel, a.trustLevel ?? 0);
+  });
+  trustTypes = Object.values(types).sort((a, b) => b.trustLevel - a.trustLevel);
+  renderTrustList();
+}
+
+function renderTrustList() {
+  document.getElementById('trustList').innerHTML = trustTypes.length
+    ? trustTypes.map(t => `<div class="trust-type-item" data-type="${esc(t.type)}">
+        <span class="trust-type-name">${esc(t.type)}</span>
+        <span class="trust-badge level-${t.trustLevel}">${t.trustLevel} ${LEVEL_NAMES[t.trustLevel] || ''}</span>
+      </div>`).join('')
+    : '<div class="empty-state">No agent types found.</div>';
+
+  document.querySelectorAll('.trust-type-item').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.trust-type-item').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      loadTrustDetail(el.dataset.type);
+    });
+  });
+}
+
+async function loadTrustDetail(type) {
+  const data = await api('/trust/' + encodeURIComponent(type));
+  const detail = document.getElementById('trustDetail');
+
+  if (!data) {
+    const t = trustTypes.find(t => t.type === type);
+    detail.innerHTML = `<div class="section-title">${esc(type)}</div>
+      <div class="trust-badge level-${t?.trustLevel ?? 0}" style="font-size:13px;padding:4px 12px;display:inline-block;margin-bottom:16px">
+        Level ${t?.trustLevel ?? 0} \u2014 ${LEVEL_NAMES[t?.trustLevel ?? 0]}</div>
+      <p style="color:var(--text-tertiary);font-size:12px">No detailed trust data available from API.</p>`;
+    return;
+  }
+
+  const level = data.trustLevel ?? 0;
+  const criteria = data.criteria || [];
+  const violations = data.violations || [];
+  const blockers = data.promotionBlockers || [];
+
+  detail.innerHTML = `
+    <div class="section-title">${esc(type)}</div>
+    <div class="trust-badge level-${level}" style="font-size:13px;padding:4px 12px;display:inline-block;margin-bottom:16px">
+      Level ${level} \u2014 ${LEVEL_NAMES[level]}</div>
+    ${criteria.length ? '<div class="section-title">Criteria</div>' + criteria.map(c =>
+      `<div class="criteria-row">
+        <div class="criteria-icon ${c.met ? 'pass' : 'fail'}">${c.met ? '\u2713' : '\u2717'}</div>
+        <div class="criteria-name">${esc(c.name || '')}</div>
+        <div class="criteria-values">${esc(String(c.current ?? ''))} / ${esc(String(c.required ?? ''))}</div>
+      </div>`).join('') : ''}
+    ${blockers.length ? '<div class="section-title">Promotion Blockers</div>' + blockers.map(b =>
+      `<div style="padding:6px 0;font-size:12px;color:var(--warning)">\u2022 ${esc(b)}</div>`).join('') : ''}
+    ${violations.length ? '<div class="section-title">Violation History</div>' + violations.map(v =>
+      `<div class="violation-item">
+        <div class="violation-date">${v.date || ''}</div>
+        <div class="violation-desc">${esc(v.description || '')}</div>
+      </div>`).join('') : ''}`;
+}
+
+// --- Knowledge ---
+document.getElementById('knowledgeSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchKnowledge(e.target.value.trim());
+});
+
+async function searchKnowledge(query) {
+  const container = document.getElementById('knowledgeResults');
+  if (!query) {
+    container.innerHTML = '<div class="empty-state">Search exit reports, findings, and swarm learnings.</div>';
+    return;
+  }
+  const data = await api('/exit-reports/search?q=' + encodeURIComponent(query));
+  const results = Array.isArray(data) ? data : (data?.results || data?.reports || []);
+
+  if (!results.length) {
+    container.innerHTML = '<div class="empty-state">No reports found. The swarm hasn\'t learned anything about this yet.</div>';
+    return;
+  }
+
+  container.innerHTML = results.map(r => {
+    const freshness = r.freshnessScore?.baseScore ?? r.freshness ?? 1;
+    const opacity = Math.max(0.4, Math.min(1, freshness));
+    const findings = r.keyFindings || [];
+    return `<div class="report-card" style="opacity:${opacity}">
+      <div class="report-header">
+        <span class="report-agent">${esc(r.agentId || r.name || '')}</span>
+        <span class="report-mandate">${esc(r.mandate || '')}</span>
+        <span class="report-freshness">${freshness.toFixed(2)}</span>
+      </div>
+      ${findings.length ? `<div class="report-tags">${findings.slice(0, 5).map(f =>
+        `<span class="report-tag">${esc(truncate(f, 60))}</span>`).join('')}</div>` : ''}
+      <div class="report-columns">
+        <div class="report-col">
+          <div class="report-col-title">Worked</div>
+          <div class="report-col-body">${esc(r.whatWorked || '\u2014')}</div>
+        </div>
+        <div class="report-col">
+          <div class="report-col-title">Failed</div>
+          <div class="report-col-body">${esc(r.whatFailed || '\u2014')}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- Refresh ---
+function startRefresh() {
+  stopRefresh();
+  refreshInterval = setInterval(() => {
+    if (currentView === 'roster') loadRoster();
+    else if (currentView === 'vitals') loadVitals();
+  }, 5000);
+  document.getElementById('liveDot').style.background = 'var(--success)';
+  document.getElementById('liveLabel').textContent = 'Live';
+}
+
+function stopRefresh() {
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+  document.getElementById('liveDot').style.background = 'var(--text-tertiary)';
+  document.getElementById('liveLabel').textContent = 'Paused';
+}
+
+// --- Utilities ---
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '\u2026' : s; }
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return 'now';
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24);
+  return d + 'd ago';
+}
+
+// --- Init ---
+loadRoster();
+startRefresh();
+</script>
+</body>
+</html>
