@@ -293,7 +293,7 @@ class RegistryService:
             )
         )).scalar_one()
 
-        agent_density = min(active_count / self.capacity, 1.0)
+        agent_density = min(active_count / max(self.capacity, 1), 1.0)
 
         # Token rate -- average tokens consumed by agents born in last 24h,
         # normalised against a budget of 10_000 per agent.

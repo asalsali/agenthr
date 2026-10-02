@@ -22,6 +22,9 @@ def main():
     # init
     sub.add_parser("init", help="Initialize the database")
 
+    # mcp-serve
+    sub.add_parser("mcp-serve", help="Start the AgentHR MCP server (stdio)")
+
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -39,6 +42,10 @@ def main():
 
         asyncio.run(create_tables())
         print("AgentHR database initialized.")
+    elif args.command == "mcp-serve":
+        from agenthr.mcp_server import main as mcp_main
+
+        mcp_main()
     else:
         parser.print_help()
         sys.exit(1)

@@ -291,7 +291,19 @@ class InnateSignal(Base):
 # Engine & Session Factories
 # ---------------------------------------------------------------------------
 
-_DEFAULT_URL = "sqlite+aiosqlite:///agenthr.db"
+def _default_db_url() -> str:
+    """Resolve the default SQLite path.
+
+    Uses AGENTHR_DB_PATH env var if set, otherwise ~/.agenthr/agenthr.db
+    (absolute path so the DB location is stable regardless of CWD).
+    """
+    custom = os.environ.get("AGENTHR_DB_PATH")
+    if custom:
+        path = os.path.abspath(custom)
+    else:
+        path = os.path.join(os.path.expanduser("~"), ".agenthr", "agenthr.db")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return f"sqlite+aiosqlite:///{path}"
 
 _engine = None
 _session_factory = None
@@ -310,7 +322,7 @@ def get_engine(url: str | None = None):
     if _engine is not None:
         return _engine
 
-    resolved = url or os.environ.get("DATABASE_URL") or _DEFAULT_URL
+    resolved = url or os.environ.get("DATABASE_URL") or _default_db_url()
     _engine = create_async_engine(resolved, echo=False)
     return _engine
 
