@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agenthr": {
+      "command": "C:\\Users\\Alex Salsali\\AppData\\Roaming\\Python\\Python313\\Scripts\\agenthr.exe",
+      "args": ["mcp-serve"]
+    }
+  }
+}
