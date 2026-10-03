@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agenthr.database import (
@@ -139,10 +139,12 @@ class EvaluateService:
         """
         pattern = f"%{query}%"
         # SQLite JSON is stored as text so LIKE works on the column directly.
+        # key_findings is a JSON column, so cast to String for LIKE.
         stmt = (
             select(ExitReport)
             .where(
-                ExitReport.what_worked.ilike(pattern)
+                cast(ExitReport.key_findings, String).ilike(pattern)
+                | ExitReport.what_worked.ilike(pattern)
                 | ExitReport.what_failed.ilike(pattern)
                 | ExitReport.recommendations.ilike(pattern)
                 | ExitReport.contrarian.ilike(pattern)
